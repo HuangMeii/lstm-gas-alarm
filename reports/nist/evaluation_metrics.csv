@@ -1,0 +1,2 @@
+experiments,test_experiments,classification_windows,precision,recall,f1,pr_auc,regression_windows,regression_mae_seconds
+477,72,19388,0.86692869174621,0.3102893890675241,0.4570075477282818,0.8567252202354163,19316,150.32891845703125
