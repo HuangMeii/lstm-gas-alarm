@@ -1,0 +1,2 @@
+mae_seconds,rmse_seconds,r2,baseline_mae_seconds,test_windows,negative_prediction_ratio
+153.26806640625,529.6727173453434,-204675024.0,303.4013671875,10211,0.0
