@@ -15,10 +15,11 @@ mô hình LSTM và kết quả đánh giá phiên bản hiện tại.
 | `src/eda_report.py` | Script thống kê và kiểm tra chất lượng dữ liệu |
 | `reports/eda/*.csv` | Các báo cáo EDA |
 | `src/train_lstm.py` | Script tạo nhãn, huấn luyện và lưu mô hình |
-| `models/lstm_gas_alarm_model.pt` | Trọng số LSTM đã huấn luyện |
+| `models/early_warning_lstm.pt` | LSTM phát hiện nguy cơ alarm trong 300 giây |
+| `models/time_to_alarm_lstm.pt` | LSTM hồi quy số giây còn lại |
 | `models/scaler_X.pkl` | Bộ chuẩn hóa các đặc trưng đầu vào |
 | `models/scaler_y.pkl` | Bộ chuẩn hóa biến mục tiêu |
-| `reports/evaluation_metrics.csv` | Metric test được sinh sau huấn luyện |
+| `reports/evaluation_metrics.csv` | Metric test của hai giai đoạn |
 
 ## 2. Thông tin tổng quan dữ liệu
 
@@ -101,7 +102,19 @@ Các dòng sau sự kiện cảnh báo cuối cùng trong một đoạn được
 có sự kiện tương lai để định nghĩa thời gian đếm ngược. Các cửa sổ đi qua
 khoảng UTC bị gián đoạn cũng bị loại.
 
-## 6. Cấu hình huấn luyện
+## 6. Phiên bản hai giai đoạn đã triển khai
+
+### Giai đoạn 1: phát hiện cảnh báo sớm
+
+Nhãn dương là các cửa sổ có `time_to_alarm_sec` trong khoảng `1–300` giây.
+Mô hình dùng `BCEWithLogitsLoss` với `pos_weight` tự động để xử lý mất cân
+bằng và được đánh giá bằng Precision, Recall, F1 và PR-AUC.
+
+### Giai đoạn 2: hồi quy thời gian
+
+Chỉ các mẫu có thời gian đến alarm lớn hơn 0 được đưa vào hồi quy. Mô hình
+dùng Weighted Huber Loss, trong đó các mẫu gần alarm được ưu tiên hơn và ít
+nhạy với outlier hơn MSE.
 
 | Thành phần | Cấu hình |
 |---|---|
@@ -111,66 +124,69 @@ khoảng UTC bị gián đoạn cũng bị loại.
 | Hidden size | 64 |
 | Dropout | 0,2 |
 | Fully-connected | 64 → 32 → 1 |
-| Hàm mất mát | MSE |
+| Hàm mất mát | Weighted BCE + Weighted Huber |
 | Tối ưu hóa | Adam |
 | Learning rate | 0,001 |
 | Batch size | 64 |
 | Epochs | 10 |
 | Validation | 20% của phần train |
 | Early stopping | Patience = 3 |
-| Đầu ra | Softplus, không âm |
+| Cách chia | Theo sự kiện alarm, không chia ngẫu nhiên từng dòng |
 | Thiết bị chạy | CPU |
 
 ## 7. Chia dữ liệu và đánh giá
 
-Các cửa sổ hợp lệ được chia tuần tự theo thời gian, 80% đầu cho train và
-20% cuối cho test. Scaler chỉ được fit trên phần train:
+Các cửa sổ được chia theo các sự kiện alarm độc lập. Scaler chỉ được fit trên
+phần train:
 
 | Tập | Số cửa sổ | Phạm vi nhãn |
 |---|---:|---:|
-| Train tổng trước validation | 40.841 | 0 đến 3.178 giây |
-| Test | 10.211 | 0 đến 3.178 giây |
+| Test classifier | 1.124 | positive rate 0,267% |
+| Test regression | 3 | 0 đến 3.148 giây |
 
 ### Kết quả trên test
 
 | Chỉ số | Kết quả |
 |---|---:|
-| MAE | 153,27 giây |
-| RMSE | 529,67 giây |
-| R² | -204.675.024 |
-| MAE baseline trung bình train | 303,40 giây |
-| Dự đoán âm | 0% |
+| Precision | 0,0044 |
+| Recall | 1,0000 |
+| F1 | 0,0087 |
+| PR-AUC | 0,0032 |
+| Regression MAE | 1.414,50 giây |
+| Regression RMSE | 1.414,53 giây |
+| Dự đoán hồi quy âm | 0% |
 
-MAE giảm đáng kể so với phiên bản cũ (2.669,45 giây) và tốt hơn baseline
-trung bình train (303,40 giây). Tuy nhiên R² không ổn định vì tập test gần
-như toàn nhãn 0; mô hình vẫn chưa nên dùng để hiển thị đồng hồ trong hệ thống
-thực tế. Cần đánh giá theo từng sự kiện cảnh báo và bổ sung dữ liệu tiền cảnh
-báo đa dạng hơn.
+Kết quả này chưa đủ để triển khai thực tế. Recall cao nhưng Precision rất thấp,
+nghĩa là mô hình phát hiện được mẫu dương hiếm hoi nhưng báo động giả nhiều.
+Metric hồi quy không đáng tin cậy vì test chỉ có 3 mẫu dương. Đây là giới hạn
+của dữ liệu, không phải lý do để dùng random oversampling hoặc SMOTE làm đẹp
+đánh giá.
 
 ## 8. Những điểm đã xử lý
 
 1. Nhãn dùng chênh lệch `UTC` thực tế.
 2. Tách logic theo các đoạn UTC liên tục và bỏ cửa sổ qua gap.
 3. Scaler chỉ fit trên phần train.
-4. Có validation, early stopping và baseline.
-5. Đầu ra không âm bằng Softplus.
+4. Có validation, early stopping và `pos_weight`.
+5. Dùng Weighted Huber cho hồi quy và đánh giá PR-AUC.
 
 ## 9. Hạn chế còn lại
 
-1. Tập test theo thời gian vẫn mất cân bằng nghiêm trọng và gần như toàn nhãn 0.
+1. Tập test theo sự kiện vẫn mất cân bằng nghiêm trọng.
 2. Một số cảm biến có outlier rất lớn cần xác minh với tài liệu phần cứng.
 3. Chưa có đủ các sự kiện cháy độc lập để đánh giá tổng quát hóa.
-4. Chưa có đánh giá theo từng khoảng thời gian trước alarm.
+4. Số sự kiện độc lập quá ít để kết luận khả năng tổng quát hóa.
+5. Chưa nên triển khai cảnh báo tự động khi chưa có thêm dữ liệu.
 
 ## 10. Khuyến nghị phiên bản tiếp theo
 
 | Ưu tiên | Việc cần làm |
 |---:|---|
-| 1 | Chia test theo sự kiện cảnh báo độc lập, không chỉ theo vị trí dòng |
+| 1 | Thu thập thêm nhiều sự kiện alarm độc lập |
 | 2 | Bổ sung mẫu tiền cảnh báo trước khi `Fire Alarm=1` |
-| 3 | Xử lý hoặc xác minh các outlier cảm biến |
+| 3 | Chọn threshold theo mục tiêu giảm false alarm |
 | 4 | Báo cáo MAE theo các dải 0–10, 10–60 và trên 60 giây |
-| 5 | Cân nhắc dự báo phân loại cảnh báo sớm trước khi hồi quy thời gian |
+| 5 | Chỉ triển khai sau khi test có đủ sự kiện dương |
 
 ## 10. Cách chạy lại
 

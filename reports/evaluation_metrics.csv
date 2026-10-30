@@ -1,2 +1,2 @@
-mae_seconds,rmse_seconds,r2,baseline_mae_seconds,test_windows,negative_prediction_ratio
-153.26806640625,529.6727173453434,-204675024.0,303.4013671875,10211,0.0
+classification_test_windows,classification_positive_rate,precision,recall,f1,pr_auc,regression_test_windows,regression_mae_seconds,regression_rmse_seconds,regression_negative_ratio,early_warning_seconds,max_regression_target_seconds
+1124,0.0026690391823649406,0.004366812227074236,1.0,0.008695652173913044,0.0031776218213965908,3,1414.5040283203125,1414.532958984375,0.0,300,3148.0
