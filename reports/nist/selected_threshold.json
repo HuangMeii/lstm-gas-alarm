@@ -1,0 +1,4 @@
+{
+  "threshold": 0.62,
+  "selection_rule": "highest precision with validation recall >= 0.90"
+}

@@ -1,0 +1,2 @@
+threshold,negative_experiments,false_alarm_experiments,experiment_false_alarm_rate,alarm_experiments,event_recall,false_alarms_per_hour
+0.62,1,1,1.0,77,1.0,3.087478473317956

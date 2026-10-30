@@ -22,9 +22,11 @@ def load_experiments() -> pd.DataFrame:
         frame = pd.read_csv(path, sep="\t", skiprows=1)
         frame.columns = [str(column).strip() for column in frame.columns]
         alarm_rows = pd.to_numeric(frame.get("Alarm?"), errors="coerce").eq(1)
-        if not alarm_rows.any():
-            continue
-        alarm_time = float(frame.loc[alarm_rows, "Counter"].iloc[0])
+        alarm_time = (
+            float(frame.loc[alarm_rows, "Counter"].iloc[0])
+            if alarm_rows.any()
+            else np.nan
+        )
         current = pd.DataFrame(
             {
                 "experiment_id": path.stem,
@@ -41,8 +43,6 @@ def load_experiments() -> pd.DataFrame:
     )
     for path in (NIST_RAW_DIR / "room").rglob("*.tsv"):
         match = room_manifest[room_manifest["experiment_id"].eq(path.stem)]
-        if match.empty:
-            continue
         frame = pd.read_csv(path, sep="\t")
         frame.columns = [str(column).strip() for column in frame.columns]
         current = pd.DataFrame(
@@ -51,7 +51,11 @@ def load_experiments() -> pd.DataFrame:
                 "time_sec": _numeric(frame, "Counter (s)"),
                 "obscuration": _numeric(frame, "Obsc (%/ft) smoothed"),
                 "mic": _numeric(frame, "MIC (pA)"),
-                "alarm_time_sec": float(match.iloc[0]["alarm_time_sec"]),
+                "alarm_time_sec": (
+                    float(match.iloc[0]["alarm_time_sec"])
+                    if not match.empty
+                    else np.nan
+                ),
             }
         )
         records.append(current)
@@ -60,11 +64,15 @@ def load_experiments() -> pd.DataFrame:
         raise ValueError("No labeled NIST experiments were found.")
     data = pd.concat(records, ignore_index=True).dropna(subset=FEATURE_COLUMNS + ["time_sec"])
     data["time_to_alarm_sec"] = data["alarm_time_sec"] - data["time_sec"]
-    return data[data["time_to_alarm_sec"] >= 0].reset_index(drop=True)
+    return data[
+        data["time_to_alarm_sec"].isna() | (data["time_to_alarm_sec"] >= 0)
+    ].reset_index(drop=True)
 
 
-def create_windows(data: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    windows, targets, groups = [], [], []
+def create_windows(
+    data: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    windows, targets, groups, times = [], [], [], []
     for experiment_id, frame in data.groupby("experiment_id", sort=False):
         frame = frame.sort_values("time_sec")
         values = frame[FEATURE_COLUMNS].to_numpy(dtype=np.float32)
@@ -75,6 +83,12 @@ def create_windows(data: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarr
             windows.append(values[i : i + SEQ_LEN])
             targets.append(target[i + SEQ_LEN])
             groups.append(experiment_id)
+            times.append(frame["time_sec"].iloc[i + SEQ_LEN])
     if not windows:
         raise ValueError("No valid NIST windows were created.")
-    return np.asarray(windows), np.asarray(targets), np.asarray(groups)
+    return (
+        np.asarray(windows),
+        np.asarray(targets),
+        np.asarray(groups),
+        np.asarray(times, dtype=np.float32),
+    )

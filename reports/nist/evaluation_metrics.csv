@@ -1,2 +1,2 @@
-experiments,test_experiments,classification_windows,precision,recall,f1,pr_auc,regression_windows,regression_mae_seconds
-477,72,19388,0.86692869174621,0.3102893890675241,0.4570075477282818,0.8567252202354163,19316,150.32891845703125
+experiments,test_experiments,test_scenarios,unseen_test_scenarios,classification_windows,threshold,precision,recall,f1,pr_auc,regression_windows,regression_mae_seconds,experiment_false_alarm_rate,event_recall
+487,78,41,"I01-E,I03-A,I03-B,I03-C,I04-C,I05-E,I05-F,I06-C,I06-D,I06-E,I07-D,I08-A,I08-F,I10-C,I10-E,I13-D,ICO02-F,ICO03-E,ICO04-F,P01-A,P01-D,P05-C,P05-D,P05-F,P06-B,P09-F,P10-A,P11-F,P12-A,P13-A,P14-C,PCO01-A,PCO01-B,PCO02-C,PCO06-D,PI01-B,PI01-E,PI01-F,PI02-F,PI04-E,PT01-B",20262,0.62,0.7530358302933386,0.9998672948045916,0.8590730289037113,0.772732670900985,19018,151.6697540283203,1.0,1.0
